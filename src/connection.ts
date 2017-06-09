@@ -1,12 +1,12 @@
 'use strict';
 
 import { EventEmitter } from 'events';
+import { decode, encode } from 'iconv-lite';
 import { Socket } from 'net';
 import { ContextCoordinator } from './context';
 import { Logger } from './log';
 import { Command, Response } from './protocol';
 import { DebugProtocolTransport } from './transport';
-
 const log = Logger.create('DebugConnection');
 
 export interface ConnectionLike {
@@ -36,7 +36,46 @@ export class DebugConnection extends EventEmitter implements ConnectionLike {
 
     public handleResponse = (response: Response): void => {
         log.info(`handle response: ${JSON.stringify(response)}`);
+        // Check if we receive a response from the debugger with the subtype variables
+        // see https://github.com/swojtasiak/jsrdbg for further explanation.
+        if (response.subtype === 'variables') {
+            // check that the actual content of the response also includes a variables property.
+            if (response.content && response.content.hasOwnProperty('variables')) {
+                if (response.content.variables[0] && response.content.variables[0].hasOwnProperty('variables')) {
+                    /** The Server gives us a variabelvalue in UTF-8.
+                     * To ensure that the gui can display the data in a correct manner,
+                     * we decode the variablevalue, and turn the result in a js string.
+                     */
 
+                    // Take only the variables that have a value.
+                    response.content.variables[0].variables.filter((variable: any) => {
+                        return variable.hasOwnProperty('value');
+                    })
+                    // Just take the variables with a normal string value, that dont contain jsrdbg
+                    .filter((variable: any) => {
+                        return typeof variable.value === 'string' && variable.value.indexOf('jsrdbg') === -1;
+                    // For every variable that passes the previous filters ...
+                }).forEach((variable: any) => {
+                        // save the current value of the variable.
+                        const oldValue: string = variable.value;
+                        // As we receive the variable value from the UTF-8-Server, we shall take care that all
+                        // characters of the UTF-8-Encoded-Value getting decoded in a proper way.
+                        // So we take the whole UTF-8-String and decode it. So we get a well formed
+                        // JS/TS-String that we can show in the gui.
+                        variable.value = decode(variable.value, 'UTF-8').toString();
+                        for (const c of variable.value)
+                        {
+                            // If only one character in the value string has the code 65533, we know smth went wrong
+                            // (the string maybe was allready decoded) :
+                            if (c.charCodeAt(0) === 65533) {
+                                // so we thurn back the deocodeprocess, by assign the old value to the current variable value.
+                                variable.value = oldValue;
+                            }
+                        }
+                    });
+                }
+            }
+        }
         if (response.content.hasOwnProperty('id')) {
             const uuid: string = response.content.id;
             if (this.responseHandlers.has(uuid)) {

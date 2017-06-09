@@ -24,6 +24,7 @@
     "Other"
   ],
   "activationEvents": [
+    "*",
     "onCommand:extension.vscode-janus-debug.provideInitialConfigurations",
     "onCommand:extension.vscode-janus-debug.askForPassword",
     "onCommand:extension.saveConfiguration",
@@ -420,10 +421,14 @@
     "postinstall": "node ./node_modules/vscode/bin/install"
   },
   "dependencies": {
+    "@types/iconv-lite": "0.0.1",
     "@types/uuid": "^2.0.29",
     "fs": "0.0.1-security",
+    "iconv-lite": "^0.4.17",
+    "jschardet": "^1.4.2",
     "net": "^1.0.2",
     "node-documents-scripting": "git+https://github.com/otris/node-documents-scripting.git",
+    "node-ipc": "^9.0.1",
     "node-sds": "git+https://git@github.com/otris/node-sds.git#1.0.0",
     "open": "0.0.5",
     "path": "^0.12.7",

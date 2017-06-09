@@ -1,13 +1,50 @@
 'use strict';
 
 import * as nodeDoc from 'node-documents-scripting';
+import { IPC } from 'node-ipc';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import * as commands from './commands';
 import { provideInitialConfigurations } from './config';
 import * as login from './login';
+import { possibleEncodings } from './possibleEncodings';
 
 export function activate(context: vscode.ExtensionContext): void {
+    const ipc = new IPC();
+    ipc.config.appspace = 'vscode-janus-debug.';
+    ipc.config.id = 'sock';
+    ipc.config.retry = 1500;
+    ipc.config.silent = true;
+
+    ipc.serve(() => {
+        ipc.server.on('message', () => {
+            vscode.window.showInformationMessage('Served!');
+        });
+        // The server (VScode extension) gets a message,
+        // that the encoding of the debugged file isnt clear enough.
+        ipc.server.on('encoding', (data, socket) => {
+            // Infom the user about his following decision.
+            vscode.window.showInformationMessage('Since the encoding of the given document cant determine, you have to choose the correct encoding.');
+            // Open a decisionwindow with 'all' possible decodings. Also we like to force the user to mak his decision.
+            // so we ignore the focus out of our decision window.
+            vscode.window.showQuickPick(possibleEncodings, {ignoreFocusOut : true})
+            .then(
+                // The User choose one encoding by clicking
+                (choosenEncoding: string) => {
+                    // Confirm the decision to the user.
+                    vscode.window.showInformationMessage(`The ${choosenEncoding}-Encoding was choosen.`);
+                    // Send the choosen encoding back to the client (debug adapter).
+                    ipc.server.emit(socket, 'encoding-response', choosenEncoding);
+                },
+                reason => {
+                    // Something went wrong during the encode decision.
+                    vscode.window.showErrorMessage(`A error occured : ${reason}`);
+                }
+            );
+        });
+    });
+
+    ipc.server.start();
 
     // only temporary to remove my hacks in settings.json
     const conf = vscode.workspace.getConfiguration('vscode-documents-scripting');

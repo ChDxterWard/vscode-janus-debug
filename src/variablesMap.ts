@@ -1,6 +1,5 @@
 'use strict';
-
-import { decode } from 'utf8';
+import { decode, encode } from 'iconv-lite';
 import { DebugProtocol } from 'vscode-debugprotocol';
 import { cantorPairing, reverseCantorPairing } from './cantor';
 import { Logger } from './log';
@@ -50,7 +49,6 @@ export class VariablesMap {
      */
     public getVariables(reference: VariablesReference): VariablesContainer {
         const variables = this.variablesMap.get(reference);
-
         if (variables === undefined) {
             throw new Error(`Unable to get variables: No variable with reference ${reference}`);
         } else {
@@ -123,7 +121,7 @@ export class VariablesMap {
         }
         // We have do differntiate between primtive types and array, object and function
         switch (typeof variableValue) {
-            case 'string': variableValue = decode(variableValue);
+            case 'string':
             case 'number':
             case 'boolean':
             case 'undefined':

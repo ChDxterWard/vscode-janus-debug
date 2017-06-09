@@ -2,6 +2,7 @@
 
 import * as assert from 'assert';
 import { connect, Socket } from 'net';
+import { IPC } from 'node-ipc';
 import { crypt_md5, SDSConnection } from 'node-sds';
 import { ContinuedEvent, DebugSession, InitializedEvent, OutputEvent, StoppedEvent, TerminatedEvent } from 'vscode-debugadapter';
 import { DebugProtocol } from 'vscode-debugprotocol';
@@ -13,7 +14,7 @@ import { Logger } from './log';
 import { Breakpoint, Command, Response, StackFrame, Variable, variableValueToString } from './protocol';
 import { LocalSource, SourceMap } from './sourceMap';
 import { VariablesContainer, VariablesMap } from './variablesMap';
-
+export let ipc: any;
 const log = Logger.create('JanusDebugSession');
 
 function codeToString(code: string): string {
@@ -111,6 +112,12 @@ export class JanusDebugSession extends DebugSession {
     }
 
     protected async launchRequest(response: DebugProtocol.LaunchResponse, args: LaunchRequestArguments): Promise<void> {
+        ipc = new IPC();
+        ipc.config.appspace = 'vscode-janus-debug.';
+        ipc.config.id = 'sock';
+        ipc.config.retry = 1500;
+        ipc.config.silent = true;
+
         this.applyConfig(args);
         log.info(`launchRequest`);
 
@@ -779,7 +786,6 @@ export class JanusDebugSession extends DebugSession {
 
     protected async variablesRequest(response: DebugProtocol.VariablesResponse, args: DebugProtocol.VariablesArguments): Promise<void> {
         log.info(`variablesRequest with variablesReference ${args.variablesReference}`);
-
         try {
             // Get variables from the variables map
             let variablesContainer = this.variablesMap.getVariables(args.variablesReference);
@@ -842,7 +848,6 @@ export class JanusDebugSession extends DebugSession {
     protected setVariableRequest(response: DebugProtocol.SetVariableResponse,
                                  args: DebugProtocol.SetVariableArguments): void {
         log.info(`setVariableRequest with variablesRequest ${args.variablesReference}`);
-
         if (this.connection === undefined) {
             throw new Error('No connetion');
         }

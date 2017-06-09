@@ -1,0 +1,41 @@
+{
+  // Use IntelliSense to learn about possible configuration attributes.
+  // Hover to view descriptions of existing attributes.
+  // For more information, visit
+  // https://github.com/otris/vscode-janus-debug/wiki/Launching-the-Debugger
+  "version": "0.0.5",
+  "configurations": [
+    {
+      "name": "Launch Script on Server",
+      "request": "launch",
+      "type": "janus",
+      "script": "${workspaceRoot}\\someScript.js",
+      "username": "admin",
+      "password": "",
+      "principal": "dopaag",
+      "host": "localhost",
+      "applicationPort": 11000,
+      "debuggerPort": 8089,
+      "stopOnEntry": false,
+      "log": {
+        "fileName": "${workspaceRoot}/vscode-janus-debug-launch.log",
+        "logLevel": {
+          "default": "Debug"
+        }
+      }
+    },
+    {
+      "name": "Attach to Server",
+      "request": "attach",
+      "type": "janus",
+      "host": "localhost",
+      "debuggerPort": 8089,
+      "log": {
+        "fileName": "${workspaceRoot}/vscode-janus-debug-attach.log",
+        "logLevel": {
+          "default": "Debug"
+        }
+      }
+    }
+  ]
+}

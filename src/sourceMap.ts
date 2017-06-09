@@ -2,8 +2,14 @@
 
 import * as crypto from 'crypto';
 import * as fs from 'fs';
+import { decode, encodingExists } from 'iconv-lite';
+import { Constants, detect } from 'jschardet';
+import { IPC } from 'node-ipc';
 import { parse, ParsedPath, sep } from 'path';
+import { ipc } from './debugSession';
 import { Logger } from './log';
+
+const log = Logger.create('SourceMap');
 
 class ValueMap<K, V> extends Map<K, V> {
 
@@ -60,20 +66,74 @@ export class LocalSource {
         this.sourceReference = 0;
     }
 
+    /**
+     * Bug(s).: - Sometimes vscode detects the test javascriptfile as a non UTF-8, even with a accordingly bom.
+     *          - After I changed the encoding in the testfile, and save as..., it seems that i have to restart the extension, to trigger the new encoding.
+     *          - The testfile is defined as utf8 by the editor -> the variable encoding seems to fail
+     */
     public loadFromDisk(): Promise<string> {
         return new Promise<string>((resolve, reject) => {
-            fs.readFile(this.path, 'utf8', (err, data) => {
+            fs.readFile(this.path, (err, fileBuffer: NodeBuffer) => {
                 if (err) {
                     reject(err);
-                } else {
-                    resolve(data);
                 }
+                this.findEncoding(fileBuffer)
+                .then(
+                    (encodingtype: string) => {
+                        log.debug(`Sourcefile : ${this.path.split('\\')[this.path.split('\\').length - 1]} seems to have a ${encodingtype}-encoding.`);
+                        // Check if the encode-decode-lib supports the actual encoding
+                        if (encodingExists(encodingtype)) {
+                            log.info(encodingtype + ' is supported.');
+                            // The laterly encoded sourcecode.
+                            let jsString: string = '';
+                            // Decode the sourcecode (stored in fileBuffer), with the encoding type. Save the result in jsString.
+                            jsString = decode(fileBuffer, encodingtype);
+                            resolve(jsString);
+                        } else {
+                            log.error(encodingtype + ' is not supported.');
+                            reject(err);
+                        }
+                    }
+                );
             });
         });
     }
-}
 
-const log = Logger.create('SourceMap');
+    private findEncoding(fileBuffer: NodeBuffer): Promise<string> {
+        return new Promise<string>((resolve, reject) => {
+            // Set the border for accepting high, to prevent errors
+            Constants.MINIMUM_THRESHOLD = 0.95;
+            // Let jschardet guessing which encoding the file seems to be
+            const assumedEncoding: any = detect(fileBuffer);
+            // If jschardet detect the assumed encoding by a confidence that is bottom
+            // of the top confidenceborder the confidence is set to 0
+            let encodingtype = assumedEncoding.confidence > Constants.MINIMUM_THRESHOLD  ? assumedEncoding.encoding : '';
+
+            // If no encoding can be determined in a not satisfying way, we send a request
+            // to the vscode-extension to ask the user.
+            if (!encodingtype) {
+                ipc.connectTo('sock',
+                    () => {
+                        ipc.of.sock.on('connect', () => {
+                            // we send our request, to inform the server (vscode extension)
+                            // about our need to ask the user for the encoding
+                            ipc.of.sock.emit('encoding');
+                            // we receive the response with the choosen encoding
+                            ipc.of.sock.on('encoding-response', (choosenEncoding: string) => {
+                                // set and resolve the encoding type
+                                encodingtype = choosenEncoding;
+                                resolve(encodingtype);
+                            });
+                        });
+                    }
+                );
+            } else {
+                // The autoguess about the file encoding was successful
+                resolve(encodingtype);
+            }
+        });
+    }
+}
 
 /**
  * Provides bi-directional mapping from local to remote source names.
