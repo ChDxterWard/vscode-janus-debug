@@ -1,6 +1,6 @@
-var nachname = 'hennßlermausi';
+var nachname = 'henßler';
 debugger;
-var vorname = 'hongkongfui';
+var vorname = 'jens';
 var name = vorname + ' | ' + nachname;
 
 PDClass.outputMessage(name);
